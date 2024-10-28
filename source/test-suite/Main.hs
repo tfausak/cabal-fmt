@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+import qualified CabalGild.Unstable.Class.MonadHandle as MonadHandle
 import qualified CabalGild.Unstable.Class.MonadLog as MonadLog
 import qualified CabalGild.Unstable.Class.MonadRead as MonadRead
 import qualified CabalGild.Unstable.Class.MonadWalk as MonadWalk
@@ -19,7 +20,8 @@ import qualified Control.Monad.Catch as Exception
 import qualified Control.Monad.Trans.Class as Trans
 import qualified Control.Monad.Trans.Except as ExceptT
 import qualified Control.Monad.Trans.RWS as RWST
-import qualified Data.ByteString as ByteString
+import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.Char as Char
 import qualified Data.Either as Either
 import qualified Data.Functor.Identity as Identity
 import qualified Data.Map as Map
@@ -31,6 +33,7 @@ import qualified System.FilePath as FilePath
 import qualified System.FilePattern as FilePattern
 import qualified System.IO.Temp as Temp
 import qualified Test.Hspec as Hspec
+import qualified Test.Main as TestMain
 
 main :: IO ()
 main = Hspec.hspec . Hspec.parallel . Hspec.describe "cabal-gild" $ do
@@ -1602,6 +1605,52 @@ main = Hspec.hspec . Hspec.parallel . Hspec.describe "cabal-gild" $ do
             "    N.M2"
           ]
 
+  Hspec.sequential $ Hspec.describe "find cabal file if stdin is a terminal" $ do
+    Hspec.around_ withTemporaryDirectory
+      . Hspec.it "successfully determine that stdin is terminal and find/format the cabal file"
+      $ do
+        let filePath = "stdin-is-terminal.cabal"
+            fileData =
+              unlines
+                [ "cabal-version: 2.2",
+                  "library",
+                  "  autogen-modules: Paths_cabal_gild"
+                ]
+        writeFile filePath fileData
+        readFile filePath `Hspec.shouldReturn` fileData
+        Gild.mainWith []
+        formattedData <- readFile filePath
+        formattedData `Hspec.shouldNotBe` fileData
+        let f = filter (not . Char.isSpace)
+        f formattedData `Hspec.shouldBe` f fileData
+
+    Hspec.it "stdin is not terminal and should be used instead of finding the cabal file" $ do
+      let fileData = ByteString.pack "cabal-version: 2.2\n"
+      TestMain.ProcessResult {TestMain.prStdout = out, TestMain.prExitCode = code} <-
+        TestMain.captureProcessResult $
+          TestMain.withStdin fileData $
+            Gild.mainWith []
+      out `Hspec.shouldBe` fileData
+      code `Hspec.shouldBe` TestMain.ExitSuccess
+
+    Hspec.around_ withTemporaryDirectory
+      . Hspec.it "fails if no cabal file is found"
+      $ do
+        TestMain.ProcessResult {TestMain.prExitCode = code} <-
+          TestMain.captureProcessResult $
+            Gild.mainWith []
+        code `Hspec.shouldNotBe` TestMain.ExitSuccess
+
+    Hspec.around_ withTemporaryDirectory
+      . Hspec.it "fails if more than one cabal file is found"
+      $ do
+        writeFile "0.cabal" "0"
+        writeFile "1.cabal" "1"
+        TestMain.ProcessResult {TestMain.prExitCode = code} <-
+          TestMain.captureProcessResult $
+            Gild.mainWith []
+        code `Hspec.shouldNotBe` TestMain.ExitSuccess
+
 withTemporaryDirectory :: IO () -> IO ()
 withTemporaryDirectory =
   Temp.withSystemTempDirectory "cabal-gild"
@@ -1666,7 +1715,9 @@ runGild arguments inputs files =
 
 expectException ::
   (Stack.HasCallStack, Eq e, Exception.Exception e) =>
-  [String] -> e -> Hspec.Expectation
+  [String] ->
+  e ->
+  Hspec.Expectation
 expectException flags exception = do
   let (a, s, w) = runGild flags [] (".", [])
   a `shouldBeFailure` exception
@@ -1717,3 +1768,6 @@ instance (Monad m) => MonadWalk.MonadWalk (TestT m) where
 
 instance (Monad m) => MonadWrite.MonadWrite (TestT m) where
   write k = TestT . Trans.lift . RWST.modify . Map.insert k
+
+instance (Monad m) => MonadHandle.MonadHandle (TestT m) where
+  stdinIsTerminalDevice = pure False

@@ -9,6 +9,7 @@ import qualified CabalGild.Unstable.Action.GetCabalVersion as GetCabalVersion
 import qualified CabalGild.Unstable.Action.ReflowText as ReflowText
 import qualified CabalGild.Unstable.Action.Render as Render
 import qualified CabalGild.Unstable.Action.StripBlanks as StripBlanks
+import qualified CabalGild.Unstable.Class.MonadHandle as MonadHandle
 import qualified CabalGild.Unstable.Class.MonadLog as MonadLog
 import qualified CabalGild.Unstable.Class.MonadRead as MonadRead
 import qualified CabalGild.Unstable.Class.MonadWalk as MonadWalk
@@ -58,7 +59,8 @@ mainWith ::
     MonadRead.MonadRead m,
     Exception.MonadThrow m,
     MonadWalk.MonadWalk m,
-    MonadWrite.MonadWrite m
+    MonadWrite.MonadWrite m,
+    MonadHandle.MonadHandle m
   ) =>
   [String] ->
   m ()
