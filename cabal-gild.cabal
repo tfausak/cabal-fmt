@@ -71,6 +71,8 @@ library
     CabalGild
     CabalGild.Unstable.Action.AttachComments
     CabalGild.Unstable.Action.EvaluatePragmas
+    CabalGild.Unstable.Action.EvaluatePragmas.Discover
+    CabalGild.Unstable.Action.EvaluatePragmas.Version
     CabalGild.Unstable.Action.ExtractComments
     CabalGild.Unstable.Action.FormatFields
     CabalGild.Unstable.Action.GetCabalVersion
